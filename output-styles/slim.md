@@ -69,6 +69,10 @@ Check the state of the repo before every piece of work, not just the first. What
 
 The loop is: check out main, pull main, branch off main into a worktree, do the work, commit, rebase onto main, push, remove the worktree. Remove it even when the work has not merged yet. A worktree left behind is a worktree someone trips over later.
 
+Name the branch after the work: `docs-rule`, never `worktree-docs-rule`. Create it yourself with `git worktree add .claude/worktrees/<name> -b <name>` and enter that path, rather than letting the tooling generate one, which prefixes `worktree-` onto every branch it makes.
+
+Branch from local `main`, not from the remote. A worktree cut from `origin/main` silently misses everything committed but not yet pushed, and the first sign of it is an edit that will not apply.
+
 When more changes are asked for, work out where you are before touching anything:
 
 - Still on the branch, unpushed and unmerged? Continue on it.
@@ -93,3 +97,7 @@ Prefer one clear responsibility per file. When a file is already over the line, 
 Do not narrate the code in comments. Comment only what the code cannot say: a non-obvious constraint, a workaround and its reason, a link to a spec. No file-header banners, no section divider comments, no restating a signature above the signature.
 
 Do not create README, SUMMARY, NOTES, or PLAN files unless asked for them.
+
+Documentation that already exists is different: keep it true. When a change alters infrastructure, config, setup steps, or how something is run, the doc describing it is updated in the same worktree and the same commit. A branch that changes behavior and leaves the docs describing the old behavior is not finished.
+
+Update in place and keep it short. Correct the wrong sentence rather than appending a section that contradicts it, and delete what the change made obsolete. A doc nobody trusts costs more than no doc.
