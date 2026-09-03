@@ -71,6 +71,7 @@ Model tiering belongs in agent definitions, not `settings.json`: orchestrator on
 
 ```
 install.sh                  idempotent installer, supports --dry-run and --uninstall
+lib/steps/*.sh              one step per file, sourced and dispatched by install.sh
 lib/merge.mjs               additive deep merge with a change report
 modules/*.json              one config area per file, applied in filename order
 hooks/*.mjs                 hook scripts, copied to ~/.claude/hooks/
@@ -132,7 +133,7 @@ Add it to `mcp/servers.json`. The installer registers it at user scope only if `
 
 A server that ships inside a plugin does not belong here. Plugins declare their own MCP servers and register them on install, so listing one in both places starts the same server twice. See [Plugins](#plugins).
 
-Run `./install.sh --no-mcp` to skip this step entirely.
+Run `./install.sh --without mcp` to skip this step entirely. `--no-mcp` is kept as an alias.
 
 ## Plugins
 
@@ -208,6 +209,24 @@ Password: <a Personal Access Token, not your password>
 ```
 
 Mint the PAT at `https://dev.azure.com/precisionfilter/_usersSettings/tokens` with **Code: Read & Write**. macOS stores it, and no token ever lands in this repo or in `settings.json`.
+
+## Steps
+
+Every piece of the install is a named step in `lib/steps/`, and `install.sh` only sources and dispatches them:
+
+```
+toolchain  az  jj  settings  hooks  excludes  credentials
+agents  keybindings  styles  terminal  global  mcp  plugins
+```
+
+`--without a,b` runs everything except those. `--steps a,b` runs only those. An unknown name is an error rather than a silent no-op, since a typo would quietly skip the work you asked for.
+
+```bash
+./install.sh --without az,jj,plugins    # skip the slow ones
+./install.sh --steps hooks,styles       # just the two
+```
+
+`az` and `jj` install the Azure CLI and Jujutsu through Homebrew when they are missing. `az` is a large download, so `--without az` is the one to reach for on a machine that does not need it.
 
 ## Toolchain bootstrap
 

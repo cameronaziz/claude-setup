@@ -11,6 +11,8 @@ UNINSTALL=0
 ONLY=""
 SKIP=""
 NO_MCP=0
+ONLY_STEPS=""
+WITHOUT=""
 BOOTSTRAP=1
 ASSUME_YES=0
 
@@ -23,10 +25,15 @@ Usage: ./install.sh [options]
   --only <name>    Apply a single module (model, sandbox, permissions, hooks,
                    worktree, attribution, workflow).
   --skip <a,b>     Skip named modules.
-  --no-mcp         Do not touch MCP server registration.
+  --steps <a,b>    Run only these steps.
+  --without <a,b>  Run everything except these steps.
+  --no-mcp         Alias for --without mcp.
   --no-bootstrap   Do not install anything. Fail if node is missing.
   --yes            Answer yes to install prompts. Required non-interactively.
   -h, --help       This.
+
+Steps: toolchain, az, jj, settings, hooks, excludes, credentials, agents,
+keybindings, styles, terminal, global, mcp, plugins.
 USAGE
 }
 
@@ -36,7 +43,9 @@ while [[ $# -gt 0 ]]; do
     --uninstall) UNINSTALL=1; shift ;;
     --only) ONLY="$2"; shift 2 ;;
     --skip) SKIP="$2"; shift 2 ;;
-    --no-mcp) NO_MCP=1; shift ;;
+    --steps) ONLY_STEPS="$2"; shift 2 ;;
+    --without) WITHOUT="$2"; shift 2 ;;
+    --no-mcp) WITHOUT="${WITHOUT:+$WITHOUT,}mcp"; shift ;;
     --no-bootstrap) BOOTSTRAP=0; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -122,59 +131,38 @@ need_brew() {
   install_brew
 }
 
-step "Toolchain"
 
-NODE_PENDING=0
-if adopt_node; then
-  say "node $(node -v)"
-elif [[ $BOOTSTRAP -eq 0 ]]; then
-  echo "node >= $NODE_MIN was not found and --no-bootstrap was passed." >&2
-  exit 1
-elif [[ $DRY_RUN -eq 1 ]]; then
-  say "would install node >= $NODE_MIN via homebrew"
-  NODE_PENDING=1
-else
-  need_brew || {
-    cat >&2 <<'MSG'
-Could not get Homebrew. Install node >= 18 another way, then re-run:
-  https://nodejs.org/en/download
-  curl -fsSL https://fnm.vercel.app/install | bash
-MSG
-    exit 1
-  }
-  say "homebrew $(brew --version | head -1 | awk '{print $2}')"
-  say "installing node via homebrew"
-  brew install node
-  adopt_node || { echo "brew install node finished but node >= $NODE_MIN is still not on PATH." >&2; exit 1; }
-  say "node $(node -v) installed"
-fi
+STEPS=(toolchain az jj settings hooks excludes credentials agents keybindings styles terminal global mcp plugins)
 
-if [[ $NODE_PENDING -eq 1 ]]; then
-  say "pnpm check deferred, it needs node"
-elif have pnpm; then
-  say "pnpm $(pnpm -v)"
-elif [[ $BOOTSTRAP -eq 0 ]]; then
-  say "pnpm missing, --no-bootstrap passed, leaving it alone"
-elif [[ $DRY_RUN -eq 1 ]]; then
-  say "would enable pnpm via corepack"
-elif have corepack && corepack enable pnpm >/dev/null 2>&1 && have pnpm; then
-  say "pnpm $(pnpm -v) enabled via corepack"
-elif have npm; then
-  npm install -g pnpm >/dev/null 2>&1 || { echo "npm install -g pnpm failed." >&2; exit 1; }
-  have pnpm || { echo "pnpm installed but is not on PATH." >&2; exit 1; }
-  say "pnpm $(pnpm -v) installed via npm"
-else
-  echo "Neither corepack nor npm is available to install pnpm." >&2
-  exit 1
-fi
+for _s in "${STEPS[@]}"; do
+  # shellcheck source=/dev/null
+  . "$REPO_DIR/lib/steps/$_s.sh"
+done
 
-if [[ $NODE_PENDING -eq 1 ]]; then
-  step "Done"
-  say "dry run stops here: the settings preview needs node, which is not installed yet"
-  say "re-run without --dry-run to bootstrap the toolchain, or install node and dry-run again"
-  exit 0
-fi
+# Every step is opt out with --without, or opt in with --steps. Unknown names are
+# an error rather than a silent no-op, since a typo would quietly skip the work.
+known_step() {
+  local s
+  for s in "${STEPS[@]}"; do [[ "$s" == "$1" ]] && return 0; done
+  return 1
+}
 
+for _s in ${WITHOUT//,/ } ${ONLY_STEPS//,/ }; do
+  known_step "$_s" || { echo "Unknown step: $_s. Known: ${STEPS[*]}" >&2; exit 1; }
+done
+
+want() {
+  [[ ",$WITHOUT," == *",$1,"* ]] && return 1
+  [[ -z "$ONLY_STEPS" ]] && return 0
+  [[ ",$ONLY_STEPS," == *",$1,"* ]]
+}
+
+run_step() {
+  want "$1" || return 0
+  "step_$1"
+}
+
+for _s in toolchain az jj; do run_step "$_s"; done
 step "Target: $CLAUDE_DIR"
 
 mkdir -p "$CLAUDE_DIR" "$BACKUP_DIR" "$CLAUDE_DIR/hooks"
@@ -208,314 +196,10 @@ MERGE_ARGS=(--settings "$SETTINGS" --modules "$REPO_DIR/modules" --claude-dir "$
 [[ $DRY_RUN -eq 1 ]] && MERGE_ARGS+=(--dry-run)
 [[ $UNINSTALL -eq 1 ]] && MERGE_ARGS+=(--uninstall)
 
-step "Settings"
-node "$REPO_DIR/lib/merge.mjs" "${MERGE_ARGS[@]}"
 
-step "Hooks"
-if [[ $UNINSTALL -eq 1 ]]; then
-  for f in "$REPO_DIR"/hooks/*.mjs; do
-    target="$CLAUDE_DIR/hooks/$(basename "$f")"
-    if [[ -f "$target" ]]; then
-      [[ $DRY_RUN -eq 1 ]] && say "would remove $target" || { rm "$target"; say "removed $(basename "$f")"; }
-    fi
-  done
-else
-  for f in "$REPO_DIR"/hooks/*.mjs; do
-    target="$CLAUDE_DIR/hooks/$(basename "$f")"
-    if [[ -f "$target" ]] && cmp -s "$f" "$target"; then
-      say "unchanged $(basename "$f")"
-      continue
-    fi
-    if [[ $DRY_RUN -eq 1 ]]; then
-      say "would install $(basename "$f")"
-    else
-      install -m 755 "$f" "$target"
-      say "installed $(basename "$f")"
-    fi
-  done
-fi
-
-step "Git excludes"
-EXCLUDES="$(git config --global core.excludesFile || true)"
-case "$EXCLUDES" in
-  "~/"*) EXCLUDES="$HOME/${EXCLUDES#\~/}" ;;
-  /*) ;;
-  *) EXCLUDES="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore" ;;
-esac
-if [[ $UNINSTALL -eq 0 ]]; then
-  # A dry run must not create the excludes file it is only reporting on.
-  if [[ $DRY_RUN -eq 0 ]]; then
-    mkdir -p "$(dirname "$EXCLUDES")"
-    touch "$EXCLUDES"
-  fi
-  for pattern in "**/.claude/worktrees/" "**/.claude/settings.local.json"; do
-    if grep -qxF "$pattern" "$EXCLUDES" 2>/dev/null; then
-      say "already excluded: $pattern"
-    elif [[ $DRY_RUN -eq 1 ]]; then
-      say "would add to $EXCLUDES: $pattern"
-    else
-      printf '%s\n' "$pattern" >> "$EXCLUDES"
-      say "added to $EXCLUDES: $pattern"
-    fi
-  done
-else
-  say "leaving git excludes alone"
-fi
-
-# git is in sandbox.excludedCommands, so it can reach the Keychain. That is the
-# only credential store the sandbox does not deny reading.
-step "Git credentials"
-CRED_HELPER="$(git config --global credential.helper || true)"
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving credential.helper alone"
-elif [[ "$(uname -s)" != "Darwin" ]]; then
-  say "not macOS, skipping osxkeychain"
-elif [[ -n "$CRED_HELPER" ]]; then
-  say "credential.helper already set to '$CRED_HELPER', not overwriting"
-elif [[ $DRY_RUN -eq 1 ]]; then
-  say "would set credential.helper to osxkeychain"
-else
-  git config --global credential.helper osxkeychain
-  say "set credential.helper to osxkeychain"
-fi
-
-if [[ $UNINSTALL -eq 0 && "$(uname -s)" == "Darwin" ]]; then
-  if printf 'protocol=https\nhost=dev.azure.com\n\n' \
-     | git credential-osxkeychain get 2>/dev/null | grep -q '^password='; then
-    say "dev.azure.com credential found in Keychain"
-  else
-    say "no dev.azure.com credential yet, first clone will prompt for a PAT:"
-    say "  git clone https://dev.azure.com/precisionfilter/ERP/_git/<repo>"
-  fi
-fi
-
-step "Agents"
-mkdir -p "$CLAUDE_DIR/agents"
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving agents alone, uninstall never deletes agent definitions"
-elif compgen -G "$REPO_DIR/agents/*.md" >/dev/null; then
-  for f in "$REPO_DIR"/agents/*.md; do
-    target="$CLAUDE_DIR/agents/$(basename "$f")"
-    if [[ -f "$target" ]]; then
-      say "kept existing $(basename "$f"), not overwriting"
-    elif [[ $DRY_RUN -eq 1 ]]; then
-      say "would create $(basename "$f")"
-    else
-      cp "$f" "$target"
-      say "created $(basename "$f")"
-    fi
-  done
-else
-  say "no agent templates in repo"
-fi
-
-step "Keybindings"
-KEYBINDS="$CLAUDE_DIR/keybindings.json"
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving keybindings alone"
-elif [[ ! -f "$REPO_DIR/keybindings.json" ]]; then
-  say "no keybindings.json in repo"
-elif [[ -f "$KEYBINDS" ]]; then
-  say "kept existing keybindings.json, not overwriting"
-elif [[ $DRY_RUN -eq 1 ]]; then
-  say "would create keybindings.json"
-else
-  cp "$REPO_DIR/keybindings.json" "$KEYBINDS"
-  say "created keybindings.json"
-fi
-
-step "Output styles"
-mkdir -p "$CLAUDE_DIR/output-styles"
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving output styles alone"
-elif compgen -G "$REPO_DIR/output-styles/*.md" >/dev/null; then
-  for f in "$REPO_DIR"/output-styles/*.md; do
-    target="$CLAUDE_DIR/output-styles/$(basename "$f")"
-    if [[ -f "$target" ]] && cmp -s "$f" "$target"; then
-      say "unchanged $(basename "$f")"
-    elif [[ $DRY_RUN -eq 1 ]]; then
-      say "would install $(basename "$f")"
-    else
-      cp "$f" "$target"
-      say "installed $(basename "$f")"
-    fi
-  done
-else
-  say "no output styles in repo"
-fi
-
-# TERM and TERM_PROGRAM are lost through tmux, ssh and Claude Code's own shell,
-# so an installed app bundle or an existing config counts as present too.
-ghostty_present() {
-  [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]] && return 0
-  [[ "${TERM_PROGRAM:-}" == "ghostty" ]] && return 0
-  [[ "${TERM:-}" == "xterm-ghostty" ]] && return 0
-  have ghostty && return 0
-  [[ -d /Applications/Ghostty.app ]] && return 0
-  [[ -d "$HOME/Applications/Ghostty.app" ]] && return 0
-  [[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/ghostty" ]] && return 0
-  return 1
-}
-
-step "Terminal"
-GHOSTTY_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config"
-FRAGMENT="$REPO_DIR/terminal/ghostty.conf"
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving terminal config alone"
-elif [[ ! -f "$FRAGMENT" ]]; then
-  say "no terminal/ghostty.conf in repo"
-elif ! ghostty_present; then
-  say "ghostty not detected, skipping"
-elif [[ -f "$GHOSTTY_CONF" ]] && grep -q "shift+enter" "$GHOSTTY_CONF" 2>/dev/null; then
-  say "kept existing shift+enter binding in $GHOSTTY_CONF"
-elif [[ $DRY_RUN -eq 1 ]]; then
-  say "would add shift+enter binding to $GHOSTTY_CONF"
-else
-  mkdir -p "$(dirname "$GHOSTTY_CONF")"
-  cat "$FRAGMENT" >> "$GHOSTTY_CONF"
-  say "added shift+enter binding to $GHOSTTY_CONF"
-  say "restart ghostty for it to take effect"
-fi
-
-step "Global config"
-GLOBAL_JSON="$HOME/.claude.json"
-GLOBAL_FRAGMENT="$REPO_DIR/global-config.json"
-# Some keys, defaultToAgentsView among them, are read from ~/.claude.json rather
-# than settings.json. Only absent keys are written, and never on a dry run.
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving $GLOBAL_JSON alone"
-elif [[ ! -f "$GLOBAL_FRAGMENT" ]]; then
-  say "no global-config.json in repo"
-else
-  node "$REPO_DIR/lib/global-config.mjs" "$GLOBAL_JSON" "$GLOBAL_FRAGMENT" "$DRY_RUN" "$BACKUP_DIR" \
-    | while IFS= read -r l; do say "$l"; done
-fi
-
-step "MCP servers"
-if [[ $NO_MCP -eq 1 || $UNINSTALL -eq 1 ]]; then
-  say "skipped, existing servers untouched"
-elif ! command -v claude >/dev/null 2>&1; then
-  say "claude CLI not on PATH, skipping MCP registration"
-elif [[ ! -f "$REPO_DIR/mcp/servers.json" ]]; then
-  say "no mcp/servers.json"
-else
-  EXISTING="$(claude mcp list 2>/dev/null || true)"
-  while IFS= read -r name; do
-    [[ -z "$name" ]] && continue
-    if grep -q "^${name}\b" <<<"$EXISTING"; then
-      say "already registered: $name"
-      continue
-    fi
-    CONFIG="$(node -e 'const s=require(process.argv[1]);const j=JSON.stringify(s[process.argv[2]]);process.stdout.write(j.split("{{HOME}}").join(process.argv[3]).split("{{CLAUDE_DIR}}").join(process.argv[4]))' "$REPO_DIR/mcp/servers.json" "$name" "$HOME" "$CLAUDE_DIR")"
-    if [[ $DRY_RUN -eq 1 ]]; then
-      say "would register: $name"
-    else
-      claude mcp add-json --scope user "$name" "$CONFIG" >/dev/null && say "registered: $name"
-    fi
-  done < <(node -e 'const s=require(process.argv[1]);console.log(Object.keys(s).join("\n"))' "$REPO_DIR/mcp/servers.json")
-fi
-
-step "Plugins"
-# Each line is "<checkout>|<plugin>@<marketplace>|<url>|<fallback url>". The
-# checkout is relative to this repo, so a machine that keeps its repositories
-# somewhere other than ~/engineering still resolves it. A plugin brings its own
-# MCP servers, so nothing here belongs in mcp/servers.json too.
-PLUGINS=(
-  "../armada-officer|officer@armada|git@ssh.dev.azure.com:v3/precisionfilter/Armada/armada-officer|https://precisionfilter@dev.azure.com/precisionfilter/Armada/_git/armada-officer"
-)
-
-# SSH first, since that is what these checkouts use, then HTTPS for a machine
-# with a PAT in the keychain but no key loaded.
-clone_plugin() {
-  local dir="$1" url
-  confirm "Clone $2 into $dir?" || { say "skipped, not cloning $dir"; return 1; }
-  for url in "$2" "$3"; do
-    [[ -z "$url" ]] && continue
-    if git clone --quiet "$url" "$dir" 2>/dev/null; then
-      say "cloned into $dir"
-      return 0
-    fi
-  done
-  say "could not clone $dir from either $2 or $3"
-  return 1
-}
-
-# A checkout that is behind installs a stale plugin. Only ever fast forward, and
-# only from a clean tree on the default branch, so local work is never at risk.
-update_plugin() {
-  local dir="$1" branch
-  [[ -d "$dir/.git" ]] || return 0
-  if [[ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]]; then
-    say "$dir has uncommitted changes, leaving it where it is"
-    return 0
-  fi
-  branch="$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || true)"
-  if [[ "$branch" != "main" ]]; then
-    say "$dir is on '$branch', not main, leaving it where it is"
-    return 0
-  fi
-  git -C "$dir" fetch --quiet origin main 2>/dev/null || { say "could not reach origin for $dir"; return 0; }
-  if git -C "$dir" merge --ff-only --quiet FETCH_HEAD 2>/dev/null; then
-    say "main is current in $dir"
-  else
-    say "$dir has diverged from origin/main, fix it by hand"
-  fi
-}
-
-# dist/ and node_modules/ are gitignored, so a fresh clone has no built server
-# for the plugin's MCP command to point at.
-build_plugin() {
-  local dir="$1"
-  [[ -f "$dir/package.json" ]] || return 0
-  [[ -f "$dir/dist/index.js" ]] && return 0
-  have pnpm || { say "pnpm is missing, cannot build $dir"; return 1; }
-  if (cd "$dir" && pnpm install --silent >/dev/null 2>&1 && pnpm build >/dev/null 2>&1); then
-    say "built $dir"
-    return 0
-  fi
-  say "build failed in $dir, run 'pnpm install && pnpm build' there to see why"
-  return 1
-}
-
-install_plugin() {
-  local dir="$1" id="$2"
-  claude plugin marketplace add "$dir" >/dev/null 2>&1 || true
-  if claude plugin install --yes --scope user "$id" >/dev/null 2>&1; then
-    say "installed: $id"
-  else
-    say "could not install $id, run 'claude plugin install $id' to see why"
-  fi
-}
-
-if [[ $UNINSTALL -eq 1 ]]; then
-  say "leaving plugins alone, uninstall never removes them"
-elif ! have claude; then
-  say "claude CLI not on PATH, skipping plugins"
-else
-  INSTALLED="$(claude plugin list 2>/dev/null || true)"
-  for entry in "${PLUGINS[@]}"; do
-    IFS='|' read -r rel_dir plugin_id clone_url clone_alt <<<"$entry"
-    # Resolve through the parent so the path reads plainly, with no ".." in it.
-    source_dir="$(cd "$REPO_DIR/$(dirname "$rel_dir")" && pwd)/$(basename "$rel_dir")"
-    if [[ $DRY_RUN -eq 1 ]]; then
-      [[ -d "$source_dir" ]] && update_plugin "$source_dir" \
-        || say "would ask to clone $clone_url into $source_dir"
-      [[ -f "$source_dir/dist/index.js" ]] || say "would build $source_dir"
-      grep -q "^\s*❯\? \?${plugin_id%%@*}@" <<<"$INSTALLED" \
-        && say "already installed: $plugin_id" || say "would install: $plugin_id"
-      continue
-    fi
-    [[ -d "$source_dir" ]] || clone_plugin "$source_dir" "$clone_url" "$clone_alt" || continue
-    update_plugin "$source_dir"
-    build_plugin "$source_dir" || continue
-    if grep -q "^\s*❯\? \?${plugin_id%%@*}@" <<<"$INSTALLED"; then
-      say "already installed: $plugin_id"
-      continue
-    fi
-    install_plugin "$source_dir" "$plugin_id"
-  done
-fi
-
+for _s in settings hooks excludes credentials agents keybindings styles terminal global mcp plugins; do
+  run_step "$_s"
+done
 step "Done"
 if [[ $DRY_RUN -eq 1 ]]; then
   say "dry run, nothing was written"
