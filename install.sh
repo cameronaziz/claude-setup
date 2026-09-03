@@ -186,7 +186,16 @@ if [[ -f "$SETTINGS" ]]; then
   fi
   if [[ $DRY_RUN -eq 0 ]]; then
     STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-    cp "$SETTINGS" "$BACKUP_DIR/settings.json.$STAMP"
+    if ! cp "$SETTINGS" "$BACKUP_DIR/settings.json.$STAMP" 2>/dev/null; then
+      cat >&2 <<MSG
+Could not write a backup to $BACKUP_DIR, so nothing was changed.
+$SETTINGS is untouched.
+
+The usual cause is running this from inside a Claude Code session, where the
+Bash sandbox denies writes to ~/.claude. Run it from a plain terminal instead.
+MSG
+      exit 1
+    fi
     say "backed up existing settings to backups/settings.json.$STAMP"
   fi
 else
@@ -234,8 +243,11 @@ case "$EXCLUDES" in
   *) EXCLUDES="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore" ;;
 esac
 if [[ $UNINSTALL -eq 0 ]]; then
-  mkdir -p "$(dirname "$EXCLUDES")"
-  touch "$EXCLUDES"
+  # A dry run must not create the excludes file it is only reporting on.
+  if [[ $DRY_RUN -eq 0 ]]; then
+    mkdir -p "$(dirname "$EXCLUDES")"
+    touch "$EXCLUDES"
+  fi
   for pattern in "**/.claude/worktrees/" "**/.claude/settings.local.json"; do
     if grep -qxF "$pattern" "$EXCLUDES" 2>/dev/null; then
       say "already excluded: $pattern"
@@ -248,6 +260,33 @@ if [[ $UNINSTALL -eq 0 ]]; then
   done
 else
   say "leaving git excludes alone"
+fi
+
+# git is in sandbox.excludedCommands, so it can reach the Keychain. That is the
+# only credential store the sandbox does not deny reading.
+step "Git credentials"
+CRED_HELPER="$(git config --global credential.helper || true)"
+if [[ $UNINSTALL -eq 1 ]]; then
+  say "leaving credential.helper alone"
+elif [[ "$(uname -s)" != "Darwin" ]]; then
+  say "not macOS, skipping osxkeychain"
+elif [[ -n "$CRED_HELPER" ]]; then
+  say "credential.helper already set to '$CRED_HELPER', not overwriting"
+elif [[ $DRY_RUN -eq 1 ]]; then
+  say "would set credential.helper to osxkeychain"
+else
+  git config --global credential.helper osxkeychain
+  say "set credential.helper to osxkeychain"
+fi
+
+if [[ $UNINSTALL -eq 0 && "$(uname -s)" == "Darwin" ]]; then
+  if printf 'protocol=https\nhost=dev.azure.com\n\n' \
+     | git credential-osxkeychain get 2>/dev/null | grep -q '^password='; then
+    say "dev.azure.com credential found in Keychain"
+  else
+    say "no dev.azure.com credential yet, first clone will prompt for a PAT:"
+    say "  git clone https://dev.azure.com/precisionfilter/ERP/_git/<repo>"
+  fi
 fi
 
 step "Agents"
@@ -320,7 +359,7 @@ else
       say "already registered: $name"
       continue
     fi
-    CONFIG="$(node -e 'const s=require(process.argv[1]);process.stdout.write(JSON.stringify(s[process.argv[2]]))' "$REPO_DIR/mcp/servers.json" "$name")"
+    CONFIG="$(node -e 'const s=require(process.argv[1]);const j=JSON.stringify(s[process.argv[2]]);process.stdout.write(j.split("{{HOME}}").join(process.argv[3]).split("{{CLAUDE_DIR}}").join(process.argv[4]))' "$REPO_DIR/mcp/servers.json" "$name" "$HOME" "$CLAUDE_DIR")"
     if [[ $DRY_RUN -eq 1 ]]; then
       say "would register: $name"
     else

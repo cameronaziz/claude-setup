@@ -3,7 +3,7 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "allowUnsandboxedCommands": false,
-    "excludedCommands": [],
+    "excludedCommands": ["git"],
     "network": {
       "allowedDomains": [
         "registry.npmjs.org",
@@ -18,10 +18,14 @@
         "crates.io",
         "static.crates.io",
         "dev.azure.com",
+        "ssh.dev.azure.com",
         "login.microsoftonline.com"
       ]
     },
     "filesystem": {
+      "allowWrite": [
+        "~/engineering"
+      ],
       "denyRead": [
         "~/.aws/credentials",
         "~/.aws/config",
