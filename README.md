@@ -63,7 +63,7 @@ Model tiering belongs in agent definitions, not `settings.json`: orchestrator on
 
 - Do not add a global `CLAUDE.md`. Global standing instructions leak into every unrelated session and eat context.
 - Do not add settings I did not ask for. If you think something is missing, tell me instead of adding it.
-- Only `global-config.json` may touch `~/.claude.json`, and only to add keys that are absent. MCP servers still go through `claude mcp add-json`.
+- Only `global-config.json` may touch `~/.claude.json`. It overwrites the keys it names and never removes anything else. MCP servers still go through `claude mcp add-json`.
 
 ---
 
@@ -78,7 +78,7 @@ mcp/servers.json            MCP servers to register if not already present
 agents/*.md                 agent templates, only copied when absent
 output-styles/*.md          output styles, copied to ~/.claude/output-styles/
 keybindings.json            key bindings, only copied when absent
-global-config.json          ~/.claude.json keys, only absent ones written
+global-config.json          ~/.claude.json keys, overwritten, others untouched
 terminal/ghostty.conf       terminal key bindings, appended when absent
 ```
 
@@ -262,7 +262,7 @@ Each body repeats the em dash and file size rules, because an output style does 
 
 `defaultToAgentsView` and `leftArrowOpensAgents` are **not** `settings.json` keys. Claude Code reads them from `getGlobalConfig()`, which is `~/.claude.json`, so a module fragment setting them is silently ignored: the merge reports a clean `set` and nothing changes.
 
-`claude config` is not a subcommand in 2.1.259, so there is no CLI to set them. `global-config.json` holds the keys and `install.sh` writes any that are absent, backing the file up first and never overwriting a value you already chose. `/config` under **Start in agent view** does the same thing by hand.
+`claude config` is not a subcommand in 2.1.259, so there is no CLI to set them. `global-config.json` holds the keys and `install.sh` writes them, backing the file up first. The named keys are overwritten, so the repo wins over a local toggle; every other key in the file is left alone. `/config` under **Start in agent view** does the same thing by hand.
 
 ## Prompt and editor
 
