@@ -1,0 +1,6 @@
+{
+  "ado": {
+    "command": "npx",
+    "args": ["-y", "@azure-devops/mcp", "precisionfilter"]
+  }
+}

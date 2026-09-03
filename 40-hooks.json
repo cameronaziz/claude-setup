@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CLAUDE_DIR}}/hooks/block-destructive-bash.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^(Read|Edit|Write|NotebookEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CLAUDE_DIR}}/hooks/block-secret-reads.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CLAUDE_DIR}}/hooks/prune-merged-worktrees.mjs",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
