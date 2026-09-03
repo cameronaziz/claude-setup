@@ -11,6 +11,8 @@ claude
 
 Everything is additive. The installer backs up `~/.claude/settings.json` before touching it, merges module fragments into it, and never deletes keys it did not add. MCP servers, agents, and settings from other sources survive.
 
+The only things it assumes are already installed are `git` and `claude`. Homebrew, node and pnpm are bootstrapped if missing, and it asks before installing Homebrew.
+
 ---
 
 ## Instructions for Claude
@@ -46,6 +48,8 @@ Show me the `changes` array. Call out anything of type `override` or `conflict` 
 ```bash
 ./install.sh
 ```
+
+The first step is the toolchain. If node is missing it installs it with Homebrew, installing Homebrew first if that is missing too, and prompts before doing so. If I am not at the keyboard, use `--yes`. If I want it to touch nothing, use `--no-bootstrap` and it fails instead of installing.
 
 Then run `claude doctor` and report anything it rejected or dropped.
 
@@ -120,6 +124,35 @@ Run `./install.sh --no-mcp` to skip this step entirely.
 **block-secret-reads** (`PreToolUse` on Read/Edit/Write/NotebookEdit) exits 2 on `.env`, `secrets/`, `.npmrc`, `.netrc`, SSH keys, `.pem`/`.p12`/`.pfx`/`.key`, `.aws/`, and service account JSON. `.env.example` and friends pass. This duplicates the `permissions.deny` rules on purpose: deny rules can be routed around by indexing, a `PreToolUse` hook cannot.
 
 **prune-merged-worktrees** (`SessionEnd`) removes a worktree under `.worktrees/` only when the branch is fully merged into the default branch, the tree is clean, and there are no unpushed commits. Everything else is logged to `~/.claude/logs/worktree-prune.log` and left alone. It never forces and never touches the main checkout.
+
+## Toolchain bootstrap
+
+`install.sh` runs this before it touches any settings:
+
+| Missing | What happens |
+| --- | --- |
+| node on PATH but installed elsewhere | `nvm`, `fnm`, `volta` and the Homebrew prefixes are checked and put on PATH. Nothing is installed. |
+| node absent | Homebrew installs it. Minimum is node 18, which is what `lib/merge.mjs` needs. |
+| Homebrew absent | Installed from the official script, after a `[y/N]` prompt. This is the one step that asks for sudo. |
+| pnpm absent | `corepack enable pnpm`, falling back to `npm install -g pnpm`. |
+
+`--dry-run` never installs anything. If node is missing it reports what it would install and stops, because the settings preview itself needs node to run.
+
+`--no-bootstrap` installs nothing and exits non-zero if node is missing. `--yes` answers the Homebrew prompt, and is required when stdin is not a TTY.
+
+## Commit attribution
+
+`modules/50-attribution.json` turns off Claude Code's git attribution, so commits are authored by me and nothing else:
+
+```json
+{ "attribution": { "commit": "", "pr": "", "sessionUrl": false } }
+```
+
+`commit: ""` drops the `Co-Authored-By` trailer, `pr: ""` drops the `Generated with Claude Code` line from pull request descriptions, and `sessionUrl: false` drops the `Claude-Session` trailer that cloud and Remote Control sessions add.
+
+This replaces `includeCoAuthoredBy`, which is deprecated as of v2.0.62. Do not set both: once `attribution.commit` or `attribution.pr` is set, `includeCoAuthoredBy` is ignored.
+
+This only controls what Claude Code appends on its own. Set `user.name` and `user.email` yourself, per repo or globally, or git will guess from the hostname.
 
 ## Known issues
 
