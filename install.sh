@@ -388,6 +388,38 @@ else
   done < <(node -e 'const s=require(process.argv[1]);console.log(Object.keys(s).join("\n"))' "$REPO_DIR/mcp/servers.json")
 fi
 
+step "Plugins"
+# Each line is "<marketplace path>|<plugin>@<marketplace>". A plugin brings its
+# own MCP servers, so anything listed here must not also be in mcp/servers.json.
+PLUGINS=(
+  "$HOME/engineering/armada-officer|armada-officer-plugin@armada"
+)
+if [[ $UNINSTALL -eq 1 ]]; then
+  say "leaving plugins alone, uninstall never removes them"
+elif ! have claude; then
+  say "claude CLI not on PATH, skipping plugins"
+else
+  INSTALLED="$(claude plugin list 2>/dev/null || true)"
+  for entry in "${PLUGINS[@]}"; do
+    source_dir="${entry%%|*}"
+    plugin_id="${entry##*|}"
+    if [[ ! -d "$source_dir" ]]; then
+      say "skipped $plugin_id, no checkout at $source_dir"
+    elif grep -q "${plugin_id%%@*}" <<<"$INSTALLED"; then
+      say "already installed: $plugin_id"
+    elif [[ $DRY_RUN -eq 1 ]]; then
+      say "would install: $plugin_id from $source_dir"
+    else
+      claude plugin marketplace add "$source_dir" >/dev/null 2>&1 || true
+      if claude plugin install --yes --scope user "$plugin_id" >/dev/null 2>&1; then
+        say "installed: $plugin_id"
+      else
+        say "could not install $plugin_id, run 'claude plugin install $plugin_id' to see why"
+      fi
+    fi
+  done
+fi
+
 step "Done"
 if [[ $DRY_RUN -eq 1 ]]; then
   say "dry run, nothing was written"

@@ -2,12 +2,5 @@
   "ado": {
     "command": "npx",
     "args": ["-y", "@azure-devops/mcp", "precisionfilter"]
-  },
-  "armada-officer": {
-    "command": "node",
-    "args": ["{{HOME}}/engineering/armada-officer/dist/index.js", "precisionfilter"],
-    "env": {
-      "ADO_PROJECT": "ERP"
-    }
   }
 }

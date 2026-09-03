@@ -122,14 +122,30 @@ Add it to `mcp/servers.json`. The installer registers it at user scope only if `
 
 ```json
 {
-  "armada-officer": {
+  "some-server": {
     "command": "node",
-    "args": ["{{HOME}}/engineering/armada-officer/dist/index.js", "precisionfilter"]
+    "args": ["{{HOME}}/engineering/some-server/dist/index.js"]
   }
 }
 ```
 
+A server that ships inside a plugin does not belong here. Plugins declare their own MCP servers and register them on install, so listing one in both places starts the same server twice. See [Plugins](#plugins).
+
 Run `./install.sh --no-mcp` to skip this step entirely.
+
+## Plugins
+
+A plugin bundles skills, agents, commands, hooks and MCP servers behind one install, which is what an MCP server alone cannot do. The `Plugins` step in `install.sh` reads its list from a `PLUGINS` array, adds each marketplace, and installs at user scope. It skips anything whose checkout is missing, so a machine without the sibling repo still installs cleanly.
+
+```
+armada-officer-plugin@armada    ~/engineering/armada-officer
+```
+
+A repo can be its own marketplace: `.claude-plugin/marketplace.json` lists the plugin with `"source": "./"`, alongside the `.claude-plugin/plugin.json` manifest. `claude plugin validate <path>` checks both before you commit.
+
+Paths inside a plugin use `${CLAUDE_PLUGIN_ROOT}`, which resolves to wherever the plugin was installed. Never a hardcoded path, because the directory changes on every plugin update.
+
+**A plugin's MCP servers must not also be listed in `mcp/servers.json`.** The plugin registers them itself, so listing both runs the same server twice under two names.
 
 ## What the hooks do
 
