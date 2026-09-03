@@ -78,6 +78,7 @@ mcp/servers.json            MCP servers to register if not already present
 agents/*.md                 agent templates, only copied when absent
 output-styles/*.md          output styles, copied to ~/.claude/output-styles/
 keybindings.json            key bindings, only copied when absent
+terminal/ghostty.conf       terminal key bindings, appended when absent
 ```
 
 Modules apply in sorted order. A file starting with `_` is ignored, which is how you park one without deleting it.
@@ -209,9 +210,27 @@ This only controls what Claude Code appends on its own. Set `user.name` and `use
 
 `symlinkDirectories: ["node_modules"]` symlinks the dependency tree into each new worktree instead of duplicating it, which is the difference between a worktree being instant and being a fresh `pnpm install`.
 
+## Agents
+
+`agents/` holds three templates, copied to `~/.claude/agents/` only when a file of that name is absent. Model tiering lives here rather than in `settings.json`.
+
+| Agent | Model | Writes |
+| --- | --- | --- |
+| `orchestrator` | opus | no, `disallowedTools` removes Write, Edit and NotebookEdit |
+| `worker` | sonnet | yes |
+| `reviewer` | opus | no, same denial, and a review-only prompt |
+
+Each body repeats the em dash and file size rules, because an output style does not reach subagents and these are the only instructions they see.
+
 ## Prompt and editor
 
-`keybindings.json` binds `Shift+Enter` to `chat:newline` for multi-line prompts, keeping the default `Ctrl+J` as well. `Shift+Enter` is native in iTerm2, WezTerm, Ghostty, Kitty, Warp, Apple Terminal, and Windows Terminal; `Ctrl+J` works in any terminal with no terminal-side setup, and `\` + `Enter` always works. The installer will not overwrite an existing `~/.claude/keybindings.json`.
+`keybindings.json` binds `Shift+Enter` to `chat:newline` for multi-line prompts, keeping the default `Ctrl+J` as well. The installer will not overwrite an existing `~/.claude/keybindings.json`.
+
+Claude Code treats `Shift+Enter` as natively supported in iTerm2, WezTerm, Ghostty, Kitty, Warp, and Windows Terminal, and `/terminal-setup` therefore installs nothing in any of them. Apple Terminal is **not** on that list: it gets an Option+Enter binding instead.
+
+Native support is not the same as working. In Ghostty with no config of its own, `Shift+Enter` still submits, so `terminal/ghostty.conf` binds it to `\x1b\r`, the sequence Claude Code already reads as a newline. `install.sh` appends that line to `~/.config/ghostty/config` only when no `shift+enter` binding is there, and Ghostty needs a restart to pick it up.
+
+`Ctrl+J` works in any terminal with no terminal-side setup, and `\` + `Enter` always works.
 
 ## Output style
 

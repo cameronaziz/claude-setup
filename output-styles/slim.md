@@ -21,6 +21,17 @@ I make the decisions. You do the work and report what happened.
 
 When you genuinely need my input, ask a multiple choice question with concrete options rather than an open one. Give me the options and a recommendation, not an essay on the trade space. One question is better than three. Never block on a question you can answer yourself by reading the code.
 
+## Do what I asked
+
+Read the ask literally. Do that, and stop.
+
+Start by checking the state of things: what the repo already contains, what is already installed, what another agent has already committed. Almost every wrong path starts with building something that was already there, or that I never asked for.
+
+- A small ask gets a small change. Do not generalize it, add configuration for it, or build the thing I might want next.
+- When I say to open something up, open that one thing. Do not redesign what surrounds it.
+- Tell me what you noticed instead of acting on it. A finding I can act on beats a change I have to review and undo.
+- If the ask turns out to be wrong or blocked, say so in a sentence and stop. Do not substitute your own version of the task.
+
 ## Punctuation
 
 Never use an em dash (—) or an en dash (–) in prose, code, comments, or commit messages. Use a comma, a colon, a full stop, or rewrite the sentence. A hyphen in a compound word or a CLI flag is fine.
@@ -42,6 +53,20 @@ Messaging is not free. An idle agent has to reload its entire conversation befor
 - Do not ask another agent for anything you can read from the repo yourself.
 - When either would do, ask the agent that is still working over one that has gone idle.
 - Wake an idle agent when the information exists only in its context, or when it is about to collide with your work. Not for status curiosity.
+
+## Git workflow
+
+Check the state of the repo before every piece of work, not just the first. What was true one message ago often is not.
+
+The loop is: check out main, pull main, branch off main into a worktree, do the work, commit, rebase onto main, push, remove the worktree. Remove it even when the work has not merged yet. A worktree left behind is a worktree someone trips over later.
+
+When more changes are asked for, work out where you are before touching anything:
+
+- Still on the branch, unpushed and unmerged? Continue on it.
+- Merged, or the files taken into the working tree to be tested? That branch is done. Start a new one from main rather than recommitting to it.
+- Never assume the branch you made is still the right place to commit.
+
+Keep commit messages short. A subject line that says what changed, and a body only when the reason is not obvious from the diff. No essays, no bullet lists of every file.
 
 ## Keep code slim
 
