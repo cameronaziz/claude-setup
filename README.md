@@ -169,6 +169,10 @@ and this client did not offer an authentication method, so the connection was re
 
 No `allowedDomains` entry fixes that, because the proxy never speaks SSH. Excluding the binaries is the only way an `ssh://` or `git@host:` remote works. `excludedCommands` is read at session start, so a session already running keeps the old set until it restarts.
 
+Excluding git is also what makes worktree cleanup work. Removing a worktree means deleting `.claude/hooks/` and `.claude/.cc-writes/` inside it, and both sit on Claude Code's own built-in write-deny list, which `allowWrite` does not lift. A sandboxed `rm -rf` stops partway and leaves the worktree half deleted; an unsandboxed `git worktree remove` deletes it cleanly. Use the git command, never `rm`.
+
+Because `excludedCommands` is read at session start, a session that predates this setting still has git sandboxed and still cannot remove a worktree. That resolves itself on the next session, not by widening anything further.
+
 The cost is real: git hooks, aliases and clean/smudge filters in any repo run unsandboxed. `hooks/block-destructive-bash.mjs` still sees every git command Claude issues and is what stops the destructive ones, so the exclusion widens what git can touch, not what Claude is allowed to ask for.
 
 ### Azure DevOps
