@@ -135,11 +135,17 @@ Run `./install.sh --no-mcp` to skip this step entirely.
 
 ## Plugins
 
-A plugin bundles skills, agents, commands, hooks and MCP servers behind one install, which is what an MCP server alone cannot do. The `Plugins` step in `install.sh` reads its list from a `PLUGINS` array, adds each marketplace, and installs at user scope. It skips anything whose checkout is missing, so a machine without the sibling repo still installs cleanly.
+A plugin bundles skills, agents, commands, hooks and MCP servers behind one install, which is what an MCP server alone cannot do. The `Plugins` step in `install.sh` reads its list from a `PLUGINS` array and, for each entry, clones the checkout if it is missing, builds it if it has never been built, then adds the marketplace and installs at user scope.
+
+Each entry is four fields:
 
 ```
-armada-officer-plugin@armada    ~/engineering/armada-officer
+<checkout>|<plugin>@<marketplace>|<url>|<fallback url>
 ```
+
+The clone tries SSH first, since that is what these checkouts use, then falls back to HTTPS for a machine that has a PAT in the keychain but no key loaded. A plugin whose repo builds a server needs the build step too: `dist/` and `node_modules/` are gitignored, so a fresh clone has nothing for the plugin's MCP `command` to point at, and installing without building leaves a plugin that loads and then fails on first use.
+
+The whole step is idempotent. An entry is treated as done only when the plugin is installed **and** its build output exists, so a half finished machine resumes at the right place rather than skipping.
 
 A repo can be its own marketplace: `.claude-plugin/marketplace.json` lists the plugin with `"source": "./"`, alongside the `.claude-plugin/plugin.json` manifest. `claude plugin validate <path>` checks both before you commit.
 
