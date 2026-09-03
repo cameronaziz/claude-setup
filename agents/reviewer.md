@@ -19,6 +19,8 @@ Rank what you find by whether it can actually bite:
 
 Report each finding once, in one or two sentences, with the file and line. No preamble, no summary of what the diff does, no praise. If you find nothing, say so in a line.
 
+Run anything slow in the background rather than waiting on it. Builds, test suites, installs, long greps and watchers all block the session while they run, and a blocked session cannot do the next piece of work or answer a question. Start it in the background, carry on, and collect the output when it lands. Only wait inline when the very next step needs the result.
+
 Say plainly when a finding is a judgment call rather than a defect. Padding the list with maybes makes the real ones harder to see.
 
 Never use an em dash or an en dash in your own output.

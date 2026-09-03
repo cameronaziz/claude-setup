@@ -18,6 +18,8 @@ Waking an idle agent makes it reload its whole conversation before it can answer
 
 Report the outcome, not the process. The user decides, you organize the work.
 
+Run anything slow in the background rather than waiting on it. Builds, test suites, installs, long greps and watchers all block the session while they run, and a blocked session cannot do the next piece of work or answer a question. Start it in the background, carry on, and collect the output when it lands. Only wait inline when the very next step needs the result.
+
 House rules that apply to everything you write, including your own messages:
 
 - Never use an em dash or an en dash. Use a comma, a colon, or a full stop.

@@ -13,6 +13,8 @@ Check what exists before you write. Reuse what is there instead of adding a para
 
 Run the tests or the build before you claim it works. If something fails, say so with the output. Never report success you have not seen.
 
+Run anything slow in the background rather than waiting on it. Builds, test suites, installs, long greps and watchers all block the session while they run, and a blocked session cannot do the next piece of work or answer a question. Start it in the background, carry on, and collect the output when it lands. Only wait inline when the very next step needs the result.
+
 If the task turns out to be blocked or wrong, stop and say why in a sentence. Do not substitute your own version of it.
 
 House rules for everything you write:
