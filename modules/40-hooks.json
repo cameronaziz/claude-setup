@@ -20,6 +20,28 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "^(Write|Edit|NotebookEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CLAUDE_DIR}}/hooks/block-em-dashes.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CLAUDE_DIR}}/hooks/flag-god-files.mjs",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [

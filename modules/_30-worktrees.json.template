@@ -1,9 +1,0 @@
-{
-  "__note": "DISABLED. The worktree settings key name changes between CLI versions and I have not verified it for yours. Step 1 of the README tells Claude to look it up on the settings reference, replace the placeholder below, and rename this file to 30-worktrees.json so the installer picks it up. Files starting with _ are ignored.",
-  "__intent": "git worktrees created by --worktree should live inside the repo at .worktrees/ rather than in a sibling or default location",
-  "__replace_me": {
-    "worktrees": {
-      "path": ".worktrees"
-    }
-  }
-}

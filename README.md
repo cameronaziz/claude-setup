@@ -30,7 +30,7 @@ Confirm, for the installed CLI version (`claude --version`):
 
 - the `model` key and whether `"opus"` is an accepted value or it wants a full model string
 - the `sandbox` block: `enabled`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`, `excludedCommands`, `network.*`, `filesystem.*`
-- the **git worktree configuration key**, which I have not verified. `modules/_30-worktrees.json.template` is a disabled placeholder. Find the real key, fill it in so worktrees land in `.worktrees/` inside the repo, and rename the file to `30-worktrees.json` so the installer picks it up.
+- the `worktree` block: `baseRef`, `symlinkDirectories`, `sparsePaths`, `bgIsolation`. Note there is no key for worktree *location*, so do not go looking for one; see [Worktrees](#worktrees).
 - hook event names and the stdin JSON shape for `PreToolUse` and `SessionEnd`, including whether matcher regexes are anchored
 
 Where the docs disagree with what is in this repo, follow the docs, fix the repo file, and tell me what changed and why. Do not silently paper over a mismatch.
@@ -76,6 +76,8 @@ modules/*.json              one config area per file, applied in filename order
 hooks/*.mjs                 hook scripts, copied to ~/.claude/hooks/
 mcp/servers.json            MCP servers to register if not already present
 agents/*.md                 agent templates, only copied when absent
+output-styles/*.md          output styles, copied to ~/.claude/output-styles/
+keybindings.json            key bindings, only copied when absent
 ```
 
 Modules apply in sorted order. A file starting with `_` is ignored, which is how you park one without deleting it.
@@ -123,7 +125,11 @@ Run `./install.sh --no-mcp` to skip this step entirely.
 
 **block-secret-reads** (`PreToolUse` on Read/Edit/Write/NotebookEdit) exits 2 on `.env`, `secrets/`, `.npmrc`, `.netrc`, SSH keys, `.pem`/`.p12`/`.pfx`/`.key`, `.aws/`, and service account JSON. `.env.example` and friends pass. This duplicates the `permissions.deny` rules on purpose: deny rules can be routed around by indexing, a `PreToolUse` hook cannot.
 
-**prune-merged-worktrees** (`SessionEnd`) removes a worktree under `.worktrees/` only when the branch is fully merged into the default branch, the tree is clean, and there are no unpushed commits. Everything else is logged to `~/.claude/logs/worktree-prune.log` and left alone. It never forces and never touches the main checkout.
+**block-em-dashes** (`PreToolUse` on Write/Edit/NotebookEdit) exits 2 when the content being written contains an em dash or an en dash, and prints the offending lines. `file_path` is exempt, since a dash in a path is mine, not Claude's. The style rule also lives in the `slim` output style, but an output style is an instruction that drifts as context fills, and a hook does not.
+
+**flag-god-files** (`PostToolUse` on Write/Edit) exits 2 when the file that was just written is over 300 lines, or holds a function over 50 lines. The write has already happened at that point, so this reports rather than prevents: exit 2 is what puts the message in front of Claude. Thresholds match `output-styles/slim.md`. It only looks at known source extensions.
+
+**prune-merged-worktrees** (`SessionEnd`) removes a worktree under `.claude/worktrees/` only when the branch is fully merged into the default branch, the tree is clean, and there are no unpushed commits. Everything else is logged to `~/.claude/logs/worktree-prune.log` and left alone. It never forces and never touches the main checkout.
 
 ## Toolchain bootstrap
 
@@ -153,6 +159,26 @@ Run `./install.sh --no-mcp` to skip this step entirely.
 This replaces `includeCoAuthoredBy`, which is deprecated as of v2.0.62. Do not set both: once `attribution.commit` or `attribution.pr` is set, `includeCoAuthoredBy` is ignored.
 
 This only controls what Claude Code appends on its own. Set `user.name` and `user.email` yourself, per repo or globally, or git will guess from the hostname.
+
+## Worktrees
+
+**Worktree location is not configurable, and it is already inside the repo.** Claude Code always creates worktrees at `.claude/worktrees/` and there is no setting that moves them. The `worktree` block is real but its only sub-keys are `baseRef`, `symlinkDirectories`, `sparsePaths`, and `bgIsolation`. The earlier `_30-worktrees.json.template` placeholder was chasing a `worktrees.path` key that does not exist; it has been deleted and replaced by `modules/30-worktree.json`.
+
+`install.sh` adds `**/.claude/worktrees/` to the global git excludes, so worktrees are ignored by default in every repo without touching any project's `.gitignore`.
+
+`symlinkDirectories: ["node_modules"]` symlinks the dependency tree into each new worktree instead of duplicating it, which is the difference between a worktree being instant and being a fresh `pnpm install`.
+
+## Prompt and editor
+
+`keybindings.json` binds `Shift+Enter` to `chat:newline` for multi-line prompts, keeping the default `Ctrl+J` as well. `Shift+Enter` is native in iTerm2, WezTerm, Ghostty, Kitty, Warp, Apple Terminal, and Windows Terminal; `Ctrl+J` works in any terminal with no terminal-side setup, and `\` + `Enter` always works. The installer will not overwrite an existing `~/.claude/keybindings.json`.
+
+## Output style
+
+`output-styles/slim.md` is a custom style, selected by `outputStyle: "slim"` in `modules/60-workflow.json`. It sets `keep-coding-instructions: true`, so it layers on top of the normal engineering behavior rather than replacing it. It covers three things: lead with the result and skip preamble, never use em or en dashes, and split files and functions before they become god objects.
+
+It replaces the built-in **Concise** style rather than sitting alongside it, because output styles do not stack: a session has exactly one. `slim` includes the concision rules, so nothing is lost. To go back to the built-in, set `"outputStyle": "Concise"`.
+
+**An output style does not reach subagents.** Subagents run their own system prompt, so a style shapes the main thread only, and a fork is the sole exception. A global `CLAUDE.md` is the one channel that would reach both, and this repo deliberately does not add one. That is why the em dash and god file rules are also enforced as hooks: a hook fires for every agent, on every write, no matter whose context it is running in. If you add agent templates under `agents/`, repeat the rules in the body of each one.
 
 ## Known issues
 

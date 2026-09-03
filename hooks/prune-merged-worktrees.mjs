@@ -80,8 +80,8 @@ const main = async () => {
   for (const entry of entries) {
     if (entry.skip || !entry.branch) continue;
     if (entry.path === root) continue;
-    if (!entry.path.includes(`${sep}.worktrees${sep}`)) {
-      log(`skip ${entry.path}: not under .worktrees/`);
+    if (!entry.path.includes(`${sep}.claude${sep}worktrees${sep}`)) {
+      log(`skip ${entry.path}: not under .claude/worktrees/`);
       continue;
     }
 

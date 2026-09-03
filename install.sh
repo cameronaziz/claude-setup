@@ -21,7 +21,7 @@ Usage: ./install.sh [options]
   --dry-run        Print what would change. Writes nothing.
   --uninstall      Remove only what this repo added. Leaves everything else.
   --only <name>    Apply a single module (model, sandbox, permissions, hooks,
-                   worktrees, attribution).
+                   worktree, attribution, workflow).
   --skip <a,b>     Skip named modules.
   --no-mcp         Do not touch MCP server registration.
   --no-bootstrap   Do not install anything. Fail if node is missing.
@@ -236,7 +236,7 @@ esac
 if [[ $UNINSTALL -eq 0 ]]; then
   mkdir -p "$(dirname "$EXCLUDES")"
   touch "$EXCLUDES"
-  for pattern in ".worktrees/" "**/.claude/settings.local.json"; do
+  for pattern in "**/.claude/worktrees/" "**/.claude/settings.local.json"; do
     if grep -qxF "$pattern" "$EXCLUDES" 2>/dev/null; then
       say "already excluded: $pattern"
     elif [[ $DRY_RUN -eq 1 ]]; then
@@ -268,6 +268,41 @@ elif compgen -G "$REPO_DIR/agents/*.md" >/dev/null; then
   done
 else
   say "no agent templates in repo"
+fi
+
+step "Keybindings"
+KEYBINDS="$CLAUDE_DIR/keybindings.json"
+if [[ $UNINSTALL -eq 1 ]]; then
+  say "leaving keybindings alone"
+elif [[ ! -f "$REPO_DIR/keybindings.json" ]]; then
+  say "no keybindings.json in repo"
+elif [[ -f "$KEYBINDS" ]]; then
+  say "kept existing keybindings.json, not overwriting"
+elif [[ $DRY_RUN -eq 1 ]]; then
+  say "would create keybindings.json"
+else
+  cp "$REPO_DIR/keybindings.json" "$KEYBINDS"
+  say "created keybindings.json"
+fi
+
+step "Output styles"
+mkdir -p "$CLAUDE_DIR/output-styles"
+if [[ $UNINSTALL -eq 1 ]]; then
+  say "leaving output styles alone"
+elif compgen -G "$REPO_DIR/output-styles/*.md" >/dev/null; then
+  for f in "$REPO_DIR"/output-styles/*.md; do
+    target="$CLAUDE_DIR/output-styles/$(basename "$f")"
+    if [[ -f "$target" ]] && cmp -s "$f" "$target"; then
+      say "unchanged $(basename "$f")"
+    elif [[ $DRY_RUN -eq 1 ]]; then
+      say "would install $(basename "$f")"
+    else
+      cp "$f" "$target"
+      say "installed $(basename "$f")"
+    fi
+  done
+else
+  say "no output styles in repo"
 fi
 
 step "MCP servers"

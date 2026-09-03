@@ -20,6 +20,20 @@
         "dev.azure.com",
         "login.microsoftonline.com"
       ]
+    },
+    "filesystem": {
+      "denyRead": [
+        "~/.aws/credentials",
+        "~/.aws/config",
+        "~/.ssh",
+        "~/.npmrc",
+        "~/.netrc",
+        "~/.config/gh/hosts.yml",
+        "~/.docker/config.json",
+        "~/.kube/config",
+        "~/.gnupg",
+        "~/Library/Keychains"
+      ]
     }
   }
 }
