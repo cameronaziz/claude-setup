@@ -251,6 +251,12 @@ This only controls what Claude Code appends on its own. Set `user.name` and `use
 
 Each body repeats the em dash and file size rules, because an output style does not reach subagents and these are the only instructions they see.
 
+## Agent view
+
+`defaultToAgentsView` and `leftArrowOpensAgents` are **not** `settings.json` keys. Claude Code reads them from `getGlobalConfig()`, which is `~/.claude.json`, so a module fragment setting them is silently ignored: the merge reports a clean `set` and nothing changes.
+
+This repo does not write `~/.claude.json`. Toggle it once per machine in `/config`, under **Start in agent view**.
+
 ## Prompt and editor
 
 `keybindings.json` binds `Shift+Enter` to `chat:newline` for multi-line prompts, keeping the default `Ctrl+J` as well. The installer will not overwrite an existing `~/.claude/keybindings.json`.

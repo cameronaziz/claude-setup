@@ -402,11 +402,52 @@ else
 fi
 
 step "Plugins"
-# Each line is "<marketplace path>|<plugin>@<marketplace>". A plugin brings its
-# own MCP servers, so anything listed here must not also be in mcp/servers.json.
+# Each line is "<checkout>|<plugin>@<marketplace>|<url>|<fallback url>". A plugin
+# brings its own MCP servers, so nothing here belongs in mcp/servers.json too.
 PLUGINS=(
-  "$HOME/engineering/armada-officer|armada-officer-plugin@armada"
+  "$HOME/engineering/armada-officer|armada-officer-plugin@armada|git@ssh.dev.azure.com:v3/precisionfilter/Armada/armada-officer|https://precisionfilter@dev.azure.com/precisionfilter/Armada/_git/armada-officer"
 )
+
+# SSH first, since that is what these checkouts use, then HTTPS for a machine
+# with a PAT in the keychain but no key loaded.
+clone_plugin() {
+  local dir="$1" url
+  for url in "$2" "$3"; do
+    [[ -z "$url" ]] && continue
+    if git clone --quiet "$url" "$dir" 2>/dev/null; then
+      say "cloned into $dir"
+      return 0
+    fi
+  done
+  say "could not clone $dir from either $2 or $3"
+  return 1
+}
+
+# dist/ and node_modules/ are gitignored, so a fresh clone has no built server
+# for the plugin's MCP command to point at.
+build_plugin() {
+  local dir="$1"
+  [[ -f "$dir/package.json" ]] || return 0
+  [[ -f "$dir/dist/index.js" ]] && return 0
+  have pnpm || { say "pnpm is missing, cannot build $dir"; return 1; }
+  if (cd "$dir" && pnpm install --silent >/dev/null 2>&1 && pnpm build >/dev/null 2>&1); then
+    say "built $dir"
+    return 0
+  fi
+  say "build failed in $dir, run 'pnpm install && pnpm build' there to see why"
+  return 1
+}
+
+install_plugin() {
+  local dir="$1" id="$2"
+  claude plugin marketplace add "$dir" >/dev/null 2>&1 || true
+  if claude plugin install --yes --scope user "$id" >/dev/null 2>&1; then
+    say "installed: $id"
+  else
+    say "could not install $id, run 'claude plugin install $id' to see why"
+  fi
+}
+
 if [[ $UNINSTALL -eq 1 ]]; then
   say "leaving plugins alone, uninstall never removes them"
 elif ! have claude; then
@@ -414,22 +455,20 @@ elif ! have claude; then
 else
   INSTALLED="$(claude plugin list 2>/dev/null || true)"
   for entry in "${PLUGINS[@]}"; do
-    source_dir="${entry%%|*}"
-    plugin_id="${entry##*|}"
-    if [[ ! -d "$source_dir" ]]; then
-      say "skipped $plugin_id, no checkout at $source_dir"
-    elif grep -q "${plugin_id%%@*}" <<<"$INSTALLED"; then
+    IFS='|' read -r source_dir plugin_id clone_url clone_alt <<<"$entry"
+    if grep -q "${plugin_id%%@*}" <<<"$INSTALLED" && [[ -f "$source_dir/dist/index.js" ]]; then
       say "already installed: $plugin_id"
-    elif [[ $DRY_RUN -eq 1 ]]; then
-      say "would install: $plugin_id from $source_dir"
-    else
-      claude plugin marketplace add "$source_dir" >/dev/null 2>&1 || true
-      if claude plugin install --yes --scope user "$plugin_id" >/dev/null 2>&1; then
-        say "installed: $plugin_id"
-      else
-        say "could not install $plugin_id, run 'claude plugin install $plugin_id' to see why"
-      fi
+      continue
     fi
+    if [[ $DRY_RUN -eq 1 ]]; then
+      [[ -d "$source_dir" ]] || say "would clone $clone_url into $source_dir"
+      [[ -f "$source_dir/dist/index.js" ]] || say "would build $source_dir"
+      say "would install: $plugin_id"
+      continue
+    fi
+    [[ -d "$source_dir" ]] || clone_plugin "$source_dir" "$clone_url" "$clone_alt" || continue
+    build_plugin "$source_dir" || continue
+    install_plugin "$source_dir" "$plugin_id"
   done
 fi
 
