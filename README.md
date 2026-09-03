@@ -153,12 +153,21 @@ Run `./install.sh --no-mcp` to skip this step entirely.
 
 The cost is that a session in one repo can now write to every other repo under `~/engineering`, not just its own. Narrow the entry to a single path if that matters more than the convenience.
 
-### Why git is excluded
+### Why git and ssh are excluded
 
 `excludedCommands: ["git"]` runs git outside the sandbox. Two things force this:
 
 - The sandbox has a **built-in, non-configurable deny** on `**/.git/config`, `**/.git/hooks/**` and `**/.gitconfig`. Everything else under `.git/` is writable, so fetch, commit and checkout work fine, but `git clone` dies writing `core.repositoryformatversion` and `git push -u` cannot record an upstream. `sandbox.filesystem.allowWrite` does not lift it.
 - Every credential store git can read is in `denyRead`, `~/Library/Keychains` included. A sandboxed git has no way to authenticate to anything private.
+
+`ssh`, `ssh-add` and `ssh-agent` are excluded for a third reason. The sandbox routes network traffic through an HTTP proxy that requires authentication, and SSH has no way to authenticate to a proxy, so any SSH remote fails with:
+
+```
+Received disconnect from UNKNOWN port 65535:1: This proxy requires authentication,
+and this client did not offer an authentication method, so the connection was refused.
+```
+
+No `allowedDomains` entry fixes that, because the proxy never speaks SSH. Excluding the binaries is the only way an `ssh://` or `git@host:` remote works. `excludedCommands` is read at session start, so a session already running keeps the old set until it restarts.
 
 The cost is real: git hooks, aliases and clean/smudge filters in any repo run unsandboxed. `hooks/block-destructive-bash.mjs` still sees every git command Claude issues and is what stops the destructive ones, so the exclusion widens what git can touch, not what Claude is allowed to ask for.
 
