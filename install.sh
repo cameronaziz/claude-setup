@@ -344,6 +344,19 @@ else
   say "no output styles in repo"
 fi
 
+# TERM and TERM_PROGRAM are lost through tmux, ssh and Claude Code's own shell,
+# so an installed app bundle or an existing config counts as present too.
+ghostty_present() {
+  [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]] && return 0
+  [[ "${TERM_PROGRAM:-}" == "ghostty" ]] && return 0
+  [[ "${TERM:-}" == "xterm-ghostty" ]] && return 0
+  have ghostty && return 0
+  [[ -d /Applications/Ghostty.app ]] && return 0
+  [[ -d "$HOME/Applications/Ghostty.app" ]] && return 0
+  [[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/ghostty" ]] && return 0
+  return 1
+}
+
 step "Terminal"
 GHOSTTY_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config"
 FRAGMENT="$REPO_DIR/terminal/ghostty.conf"
@@ -351,7 +364,7 @@ if [[ $UNINSTALL -eq 1 ]]; then
   say "leaving terminal config alone"
 elif [[ ! -f "$FRAGMENT" ]]; then
   say "no terminal/ghostty.conf in repo"
-elif ! have ghostty && [[ "${TERM:-}" != "xterm-ghostty" ]]; then
+elif ! ghostty_present; then
   say "ghostty not detected, skipping"
 elif [[ -f "$GHOSTTY_CONF" ]] && grep -q "shift+enter" "$GHOSTTY_CONF" 2>/dev/null; then
   say "kept existing shift+enter binding in $GHOSTTY_CONF"
