@@ -226,7 +226,11 @@ agents  keybindings  styles  terminal  global  mcp  plugins
 ./install.sh --steps hooks,styles       # just the two
 ```
 
-`az` and `jj` install the Azure CLI and Jujutsu through Homebrew when they are missing. `az` is a large download, so `--without az` is the one to reach for on a machine that does not need it.
+`az` and `jj` install the Azure CLI and Jujutsu through Homebrew when they are missing, and both ask first. Neither installs anything on a dry run or under `--no-bootstrap`.
+
+The `az` step also signs in: when `az account show` reports no account, it offers `az login`. That opens a browser and waits for a human, so it is skipped when stdin is not a TTY. `--yes` answers the prompt but cannot complete a sign in.
+
+`az` writes to `~/.azure` on every invocation, so `allowWrite` covers it. Without that, even `az version` dies with `Operation not permitted: '/Users/<you>/.azure'` and the CLI is unusable from a sandboxed session.
 
 ## Toolchain bootstrap
 

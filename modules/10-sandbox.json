@@ -31,7 +31,8 @@
     },
     "filesystem": {
       "allowWrite": [
-        "~/engineering"
+        "~/engineering",
+        "~/.azure"
       ],
       "denyRead": [
         "~/.aws/credentials",
