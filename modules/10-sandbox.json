@@ -3,7 +3,14 @@
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
     "allowUnsandboxedCommands": false,
-    "excludedCommands": ["git", "ssh", "ssh-add", "ssh-agent"],
+    "excludedCommands": [
+      "git",
+      "git-credential-osxkeychain",
+      "git-remote-https",
+      "ssh",
+      "ssh-add",
+      "ssh-agent"
+    ],
     "network": {
       "allowedDomains": [
         "registry.npmjs.org",
