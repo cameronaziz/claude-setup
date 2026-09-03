@@ -19,7 +19,7 @@ The only things it assumes are already installed are `git` and `claude`. Homebre
 
 You are running in this repo on a machine that may or may not already have Claude Code configured. Work through these steps in order. Stop and ask me before doing anything destructive.
 
-### Step 1 — Verify before you write
+### Step 1: Verify before you write
 
 My key names may be stale. Fetch these and check them:
 
@@ -35,7 +35,7 @@ Confirm, for the installed CLI version (`claude --version`):
 
 Where the docs disagree with what is in this repo, follow the docs, fix the repo file, and tell me what changed and why. Do not silently paper over a mismatch.
 
-### Step 2 — Show me the damage first
+### Step 2: Show me the damage first
 
 ```bash
 ./install.sh --dry-run
@@ -43,7 +43,7 @@ Where the docs disagree with what is in this repo, follow the docs, fix the repo
 
 Show me the `changes` array. Call out anything of type `override` or `conflict` in particular, since those are the only ways this can take something away from me. If an override looks wrong, stop and ask.
 
-### Step 3 — Install
+### Step 3: Install
 
 ```bash
 ./install.sh
@@ -53,7 +53,7 @@ The first step is the toolchain. If node is missing it installs it with Homebrew
 
 Then run `claude doctor` and report anything it rejected or dropped.
 
-### Step 4 — Agents
+### Step 4: Agents
 
 Read `~/.claude/agents/` and tell me what is already there before creating anything. I have an existing orchestrator/worker/reviewer setup on some machines and I do not want it overwritten. The installer already refuses to overwrite, but tell me what it skipped.
 
