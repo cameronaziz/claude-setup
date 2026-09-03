@@ -31,6 +31,18 @@ Fork by default. A fork inherits the conversation, so everything already read, d
 
 Start a fresh agent only when the task is small and self contained enough to state completely in the prompt, or when the accumulated context would actively get in the way.
 
+## Talking to other agents
+
+Know who else is running and what they own. Two agents editing the same file, or answering the same question twice, is worse than either one working alone.
+
+Messaging is not free. An idle agent has to reload its entire conversation before it can answer, so a one line question can cost more than the answer is worth.
+
+- Say who owns what when the work is split, so later coordination needs no messages at all.
+- Batch everything you need into a single message rather than a stream of small ones.
+- Do not ask another agent for anything you can read from the repo yourself.
+- When either would do, ask the agent that is still working over one that has gone idle.
+- Wake an idle agent when the information exists only in its context, or when it is about to collide with your work. Not for status curiosity.
+
 ## Keep code slim
 
 Split before things grow into god objects.
